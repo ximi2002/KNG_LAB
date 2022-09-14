@@ -55,9 +55,11 @@ class LoadBalanceGraphDataset(torch.utils.data.IterableDataset):
         assert sum(step_dist) == 1.0
         assert positional_embedding_size > 1
         self.dgl_graphs_file = dgl_graphs_file
+        # 路径什么都正常
         graph_sizes = dgl.data.utils.load_labels(dgl_graphs_file)[
             "graph_sizes"
         ].tolist()
+        
         print("load graph done")
 
         # a simple greedy algorithm for load balance

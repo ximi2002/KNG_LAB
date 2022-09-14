@@ -514,6 +514,7 @@ def main(args):
     mem = psutil.virtual_memory()
     print("before construct dataset", mem.used / 1024 ** 3)
     if args.finetune:
+
         if args.dataset in GRAPH_CLASSIFICATION_DSETS:
             dataset = GraphClassificationDatasetLabeled(
                 dataset=args.dataset,
@@ -545,6 +546,8 @@ def main(args):
         valid_dataset = torch.utils.data.Subset(dataset, test_idx)
 
     elif args.dataset == "dgl":
+        print(args.num_copies)
+        
         train_dataset = LoadBalanceGraphDataset(
             rw_hops=args.rw_hops,
             restart_prob=args.restart_prob,
@@ -554,6 +557,7 @@ def main(args):
             dgl_graphs_file="./data/small.bin",
             num_copies=args.num_copies,
         )
+        
     else:
         if args.dataset in GRAPH_CLASSIFICATION_DSETS:
             train_dataset = GraphClassificationDataset(
@@ -796,7 +800,6 @@ if __name__ == "__main__":
 
     warnings.simplefilter("once", UserWarning)
     args = parse_option()
-
     if args.cv:
         gpus = args.gpu
 
