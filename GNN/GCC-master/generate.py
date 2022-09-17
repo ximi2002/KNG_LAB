@@ -122,7 +122,9 @@ def main(args_test):
     del checkpoint
 
     emb = test_moco(train_loader, model, args)
+    print(os.path.join(args.model_folder, args_test.dataset))
     np.save(os.path.join(args.model_folder, args_test.dataset), emb.numpy())
+    print("end")
 
 
 if __name__ == "__main__":

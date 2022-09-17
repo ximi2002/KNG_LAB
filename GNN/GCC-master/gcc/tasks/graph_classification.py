@@ -3,6 +3,8 @@ import copy
 import random
 import warnings
 from collections import defaultdict
+import sys
+sys.path.append("/home/suzhang/git/GNN/GCC-master")
 
 import networkx as nx
 import numpy as np
