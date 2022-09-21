@@ -17,6 +17,9 @@ from sklearn.multiclass import OneVsRestClassifier
 from sklearn.utils import shuffle as skshuffle
 from tqdm import tqdm
 
+import sys
+sys.path.append("/home/suzhang/git/GNN/GCC-master")
+
 from gcc.datasets.data_util import create_node_classification_dataset
 from gcc.tasks import build_model
 

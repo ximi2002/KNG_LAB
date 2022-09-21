@@ -36,7 +36,7 @@ from gcc.datasets.data_util import batcher, labeled_batcher
 from gcc.models import GraphEncoder
 from gcc.utils.misc import AverageMeter, adjust_learning_rate, warmup_linear
 
-
+# 命令行参数设置
 def parse_option():
 
     # fmt: off
@@ -129,7 +129,7 @@ def parse_option():
 
     return opt
 
-
+# 命令行参数更新
 def option_update(opt):
     opt.model_name = "{}_moco_{}_{}_{}_layer_{}_lr_{}_decay_{}_bsz_{}_hid_{}_samples_{}_nce_t_{}_nce_k_{}_rw_hops_{}_restart_prob_{}_aug_{}_ft_{}_deg_{}_pos_{}_momentum_{}".format(
         opt.exp,
@@ -687,13 +687,13 @@ def main(args):
     # optionally resume from a checkpoint
     args.start_epoch = 1
     if args.resume:
-        # print("=> loading checkpoint '{}'".format(args.resume))
-        # checkpoint = torch.load(args.resume, map_location="cpu")
-        # checkpoint = torch.load(args.resume)
-        # args.start_epoch = checkpoint["epoch"] + 1
-        model.load_state_dict(checkpoint["model"])
-        # optimizer.load_state_dict(checkpoint["optimizer"])
-        contrast.load_state_dict(checkpoint["contrast"])
+        print("=> loading checkpoint '{}'".format(args.resume))
+        #checkpoint = torch.load(args.resume, map_location="cpu")
+        #checkpoint = torch.load(args.resume)
+        #args.start_epoch = checkpoint["epoch"] + 1
+        #model.load_state_dict(checkpoint["model"])
+        optimizer.load_state_dict(checkpoint["optimizer"])
+        #contrast.load_state_dict(checkpoint["contrast"])
         if args.moco:
             model_ema.load_state_dict(checkpoint["model_ema"])
 
