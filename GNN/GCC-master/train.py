@@ -165,13 +165,13 @@ def option_update(opt):
         os.makedirs(opt.tb_folder)
     return opt
 
-
+# MoCo 
 def moment_update(model, model_ema, m):
     """ model_ema = m * model_ema + (1 - m) model """
     for p1, p2 in zip(model.parameters(), model_ema.parameters()):
         p2.data.mul_(m).add_(1 - m, p1.detach().data)
 
-
+# FineTune 更新
 def train_finetune(
     epoch,
     train_loader,
@@ -280,16 +280,18 @@ def train_finetune(
             #  print(out[0].abs().max())
 
         # tensorboard logger
+        # 不知道为什么这个tb-freq 没有更新
+        opt.tb_freq=int(n_batch/3)
         if (idx + 1) % opt.tb_freq == 0:
-            sw.add_scalar("ft_loss", loss_meter.avg, global_step)
-            sw.add_scalar("ft_f1", f1_meter.avg, global_step)
-            sw.add_scalar("graph_size", graph_size.avg, global_step)
-            sw.add_scalar("lr", lr_this_step, global_step)
-            sw.add_scalar("graph_size/max", max_num_nodes, global_step)
-            sw.add_scalar("graph_size/max_edges", max_num_edges, global_step)
-            #  sw.add_scalar(
-            #      "learning_rate", optimizer.param_groups[0]["lr"], global_step
-            #  )
+            sw.add_scalar("ft_loss", loss_meter.avg, global_step/float(n_batch))
+            sw.add_scalar("ft_f1", f1_meter.avg, global_step/float(n_batch))
+            sw.add_scalar("graph_size", graph_size.avg, global_step/float(n_batch))
+            sw.add_scalar("lr", lr_this_step, global_step/float(n_batch))
+            sw.add_scalar("graph_size/max", max_num_nodes, global_step/float(n_batch))
+            sw.add_scalar("graph_size/max_edges", max_num_edges, global_step/float(n_batch))
+            sw.add_scalar(
+                 "learning_rate", optimizer.param_groups[0]["lr"], global_step/float(n_batch)
+            )
             loss_meter.reset()
             f1_meter.reset()
             graph_size.reset()
@@ -461,7 +463,9 @@ def train_moco(
             #  print(out[0].abs().max())
 
         # tensorboard logger
+
         if (idx + 1) % opt.tb_freq == 0:
+
             global_step = epoch * n_batch + idx
             sw.add_scalar("moco_loss", loss_meter.avg, global_step)
             sw.add_scalar("moco_prob", prob_meter.avg, global_step)
@@ -523,7 +527,9 @@ def main(args):
                 restart_prob=args.restart_prob,
                 positional_embedding_size=args.positional_embedding_size,
             )
-            labels = dataset.dataset.data.y.tolist()
+            #print(type(dataset.dataset))
+            #print(dataset.dataset.__class__.__dict__)
+            labels = dataset.dataset[:][1].tolist()
         else:
             dataset = NodeClassificationDatasetLabeled(
                 dataset=args.dataset,
@@ -689,14 +695,14 @@ def main(args):
     if args.resume:
         print("=> loading checkpoint '{}'".format(args.resume))
         #checkpoint = torch.load(args.resume, map_location="cpu")
-        #checkpoint = torch.load(args.resume)
-        #args.start_epoch = checkpoint["epoch"] + 1
-        #model.load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
-        #contrast.load_state_dict(checkpoint["contrast"])
+
+        checkpoint = torch.load(args.resume)
+        args.start_epoch = checkpoint["epoch"] + 1
+        model.load_state_dict(checkpoint["model"])
+        contrast.load_state_dict(checkpoint["contrast"])
         if args.moco:
             model_ema.load_state_dict(checkpoint["model_ema"])
-
         print(
             "=> loaded successfully '{}' (epoch {})".format(
                 args.resume, checkpoint["epoch"]
@@ -706,7 +712,8 @@ def main(args):
         torch.cuda.empty_cache()
 
     # tensorboard
-    #  logger = tb_logger.Logger(logdir=args.tb_folder, flush_secs=2)
+    from tensorboard_logger import Logger
+    logger = Logger(logdir=args.tb_folder, flush_secs=2)
     sw = SummaryWriter(args.tb_folder)
     #  plots_q, plots_k = zip(*[train_dataset.getplot(i) for i in range(5)])
     #  plots_q = torch.cat(plots_q)
@@ -715,8 +722,9 @@ def main(args):
     #  sw.add_images('images/graph_k', plots_k, 0, dataformats="NHWC")
 
     # routine
-    for epoch in range(args.start_epoch, args.epochs + 1):
-
+    
+    for epoch in range(0*args.start_epoch, args.epochs + 0*args.start_epoch):
+    
         adjust_learning_rate(epoch, args, optimizer)
         print("==> training...")
 
@@ -776,6 +784,7 @@ def main(args):
             "optimizer": optimizer.state_dict(),
             "epoch": epoch,
         }
+
         if args.moco:
             state["model_ema"] = model_ema.state_dict()
         save_file = os.path.join(args.model_folder, "current.pth")
@@ -789,10 +798,9 @@ def main(args):
         del state
         torch.cuda.empty_cache()
 
+
     if args.finetune:
-        valid_loss, valid_f1 = test_finetune(
-            epoch, valid_loader, model, output_layer, criterion, sw, args
-        )
+        valid_loss, valid_f1 = test_finetune(args.epochs+0*args.start_epoch-1, valid_loader, model, output_layer, criterion, sw, args)
         return valid_f1
 
 
