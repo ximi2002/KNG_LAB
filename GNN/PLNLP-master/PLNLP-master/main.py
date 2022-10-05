@@ -12,7 +12,7 @@ from plnlp.logger import Logger
 from plnlp.model import BaseModel, adjust_lr
 from plnlp.utils import gcn_normalization, adj_normalization
 
-
+# 读入命令行参数
 def argument():
     parser = argparse.ArgumentParser()
     parser.add_argument('--encoder', type=str, default='SAGE')
@@ -54,7 +54,7 @@ def argument():
     args = parser.parse_args()
     return args
 
-
+# 把str转换为bool
 def str2bool(v):
     if isinstance(v, bool):
         return v
@@ -67,6 +67,7 @@ def str2bool(v):
 
 
 def main():
+    # 设置cuda环境
     args = argument()
     device = f'cuda:{args.device}' if torch.cuda.is_available() else 'cpu'
     device = torch.device(device)
@@ -74,11 +75,13 @@ def main():
     dataset = PygLinkPropPredDataset(name=args.data_name, root=args.data_path)
     data = dataset[0]
 
+    # 化为1维向量
     if hasattr(data, 'edge_weight'):
         if data.edge_weight is not None:
             data.edge_weight = data.edge_weight.view(-1).to(torch.float)
-
+    # 变成稀疏矩阵
     data = T.ToSparseTensor()(data)
+    # 稀疏矩阵记法(COO)
     row, col, _ = data.adj_t.coo()
     data.edge_index = torch.stack([col, row], dim=0)
 
@@ -97,6 +100,7 @@ def main():
     print(args)
 
     # create log file and save args
+    # 保存log
     log_file_name = 'log_' + args.data_name + '_' + str(int(time.time())) + '.txt'
     log_file = os.path.join(args.res_dir, log_file_name)
     with open(log_file, 'a') as f:
@@ -105,12 +109,13 @@ def main():
     if hasattr(data, 'x'):
         if data.x is not None:
             data.x = data.x.to(torch.float)
-
+    # 不同图特殊处理(过会看)
     if args.data_name == 'ogbl-citation2':
         data.adj_t = data.adj_t.to_symmetric()
 
     if args.data_name == 'ogbl-collab':
         # only train edges after specific year
+        # 去掉年份过早的图
         if args.year > 0 and hasattr(data, 'edge_year'):
             selected_year_index = torch.reshape(
                 (split_edge['train']['year'] >= args.year).nonzero(as_tuple=False), (-1,))

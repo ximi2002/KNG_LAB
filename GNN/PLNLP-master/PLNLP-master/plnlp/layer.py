@@ -3,7 +3,7 @@ import torch
 import torch.nn.functional as F
 from torch_geometric.nn import SAGEConv, GCNConv, GraphConv, TransformerConv
 
-
+# 基础GNN类
 class BaseGNN(torch.nn.Module):
     def __init__(self, dropout, num_layers):
         super(BaseGNN, self).__init__()

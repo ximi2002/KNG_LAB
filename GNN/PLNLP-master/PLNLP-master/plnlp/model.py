@@ -5,7 +5,7 @@ from plnlp.layer import *
 from plnlp.loss import *
 from plnlp.utils import *
 
-
+# 基础模型类
 class BaseModel(object):
     """
         Parameters
