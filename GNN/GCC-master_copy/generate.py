@@ -20,6 +20,7 @@ from gcc.contrastive.criterions import NCESoftmaxLoss, NCESoftmaxLossNS
 from gcc.contrastive.memory_moco import MemoryMoCo
 from gcc.datasets import (
     GRAPH_CLASSIFICATION_DSETS,
+    LINK_PREDICTION_DSETS,
     GraphClassificationDataset,
     GraphClassificationDatasetLabeled,
     LoadBalanceGraphDataset,
@@ -56,6 +57,7 @@ def test_moco(train_loader, model, opt):
 
 
 def main(args_test):
+    # 加载预训练数据
     if os.path.isfile(args_test.load_path):
         print("=> loading checkpoint '{}'".format(args_test.load_path))
         checkpoint = torch.load(args_test.load_path, map_location="cpu")
@@ -68,6 +70,7 @@ def main(args_test):
         print("=> no checkpoint found at '{}'".format(args_test.load_path))
     args = checkpoint["opt"]
 
+    # 使用GPU
     assert args_test.gpu is None or torch.cuda.is_available()
     print("Use GPU: {} for generation".format(args_test.gpu))
     args.gpu = args_test.gpu
@@ -81,6 +84,9 @@ def main(args_test):
             restart_prob=args.restart_prob,
             positional_embedding_size=args.positional_embedding_size,
         )
+    elif args_test.dataset in LINK_PREDICTION_DSETS:
+        print(args_test.dataset)
+        raise NotImplementedError
     else:
         train_dataset = NodeClassificationDataset(
             dataset=args_test.dataset,
@@ -133,7 +139,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser("argument for training")
     # fmt: off
     parser.add_argument("--load-path", type=str, help="path to load model")
-    parser.add_argument("--dataset", type=str, default="dgl", choices=["dgl", "wikipedia", "blogcatalog", "usa_airport", "brazil_airport", "europe_airport", "cora", "citeseer", "pubmed", "kdd", "icdm", "sigir", "cikm", "sigmod", "icde", "h-index-rand-1", "h-index-top-1", "h-index"] + GRAPH_CLASSIFICATION_DSETS)
+    parser.add_argument("--dataset", type=str, default="dgl", choices=["dgl", "wikipedia", "blogcatalog", "usa_airport", "brazil_airport", "europe_airport", "cora", "citeseer", "pubmed", "kdd", "icdm", "sigir", "cikm", "sigmod", "icde", "h-index-rand-1", "h-index-top-1", "h-index"] + GRAPH_CLASSIFICATION_DSETS+LINK_PREDICTION_DSETS)
     parser.add_argument("--gpu", default=None, type=int, help="GPU id to use.")
     # fmt: on
     main(parser.parse_args())

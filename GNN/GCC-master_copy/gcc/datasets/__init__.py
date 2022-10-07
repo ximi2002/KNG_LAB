@@ -8,6 +8,7 @@ from .graph_dataset import (
 )
 
 GRAPH_CLASSIFICATION_DSETS = ["collab", "imdb-binary", "imdb-multi", "rdt-b", "rdt-5k"]
+LINK_PREDICTION_DSETS=["collab","ddi"]
 
 __all__ = [
     "GRAPH_CLASSIFICATION_DSETS",

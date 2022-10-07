@@ -217,7 +217,14 @@ def create_node_classification_dataset(dataset_name):
     else:
         raise NotImplementedError
 
+def create_link_prediction_dataset(dataset_name):
+    if dataset_name in ['obgl-ddi','obgl-collab']:
+        from ogb.linkproppred import DglLinkPropPredDataset
+        return DglLinkPropPredDataset(dataset_name)
+    else:
+        raise NotImplementedError
 
+# 把RWR的随机游走变为一个dgl图
 def _rwr_trace_to_dgl_graph(
     g, seed, trace, positional_embedding_size, entire_graph=False
 ):

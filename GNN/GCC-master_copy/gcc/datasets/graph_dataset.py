@@ -299,7 +299,7 @@ class NodeClassificationDataset(GraphDataset):
         assert positional_embedding_size > 1
         # 这里出现了问题
         if dataset in ["ogbn-proteins"]:
-            pass
+            raise NotImplementedError
         else:
             self.data = data_util.create_node_classification_dataset(dataset).data
             self.graphs = [self._create_dgl_graph(self.data)]
@@ -313,6 +313,7 @@ class NodeClassificationDataset(GraphDataset):
         graph.add_nodes(num_nodes)
         graph.add_edges(src, dst)
         graph.add_edges(dst, src)
+        # 图只用于可读
         graph.readonly()
         return graph
 
@@ -440,6 +441,24 @@ class NodeClassificationDatasetLabeled(NodeClassificationDataset):
         )
         return graph_q, self.data.y[idx].argmax().item()
 
+class LinkPredictionDataset(NodeClassificationDataset):
+    def __init__(
+        self,
+        dataset,
+        rw_hops=64,
+        subgraph_size=64,
+        restart_prob=0.8,
+        positional_embedding_size=32,
+        step_dist=[1.0, 0.0, 0.0],
+        ):
+        self.rw_hops=rw_hops
+        self.subgraph_size=subgraph_size
+        self.restart_prob=restart_prob
+        self.positional_embedding_size=positional_embedding_size
+        self.step_dist=step_dist
+        raise NotImplementedError
+        
+
 
 if __name__ == "__main__":
     num_workers = 1
@@ -473,22 +492,30 @@ if __name__ == "__main__":
         print(batch[0].ndata["pos_undirected"])
     exit(0)
     """
-    graph_dataset = NodeClassificationDataset(dataset="h-index")
+    from ogb.linkproppred import DglLinkPropPredDataset 
+    link_dataset=DglLinkPropPredDataset('ogbl-ddi')
+    split_edge=link_dataset.get_edge_split()
+    g=link_dataset[0]
+    train_labels=split_edge['train'].keys()
+    valid_labels=split_edge['valid'].keys()
+    test_labels=split_edge['test'].keys()
+    print(train_labels)
+    print(g)
+    """
     graph_loader = torch.utils.data.DataLoader(
         dataset=graph_dataset,
-        batch_size=20,
+        batch_size=4,
         collate_fn=data_util.batcher(),
         shuffle=True,
         num_workers=4,
     )
     for step, batch in enumerate(graph_loader):
-        for it in batch:
-            print(it)
-        """
-        print(batch.graph_q)
-        print(batch.graph_q.ndata["x"].shape)
-        print(batch.graph_q.batch_size)
-        print("max", batch.graph_q.edata["efeat"].max())
-        """
-        break
+        print(batch)
         
+        #print(batch.graph_q)
+        #print(batch.graph_q.ndata["x"].shape)
+        #print(batch.graph_q.batch_size)
+        #print("max", batch.graph_q.edata["efeat"].max())
+        
+        break
+    """
