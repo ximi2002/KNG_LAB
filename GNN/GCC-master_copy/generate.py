@@ -27,13 +27,14 @@ from gcc.datasets import (
     NodeClassificationDataset,
     NodeClassificationDatasetLabeled,
     worker_init_fn,
+    LinkPredictionDataset,
 )
-from gcc.datasets.data_util import batcher
+from gcc.datasets.data_util import batcher,linkbatcher
 from gcc.models import GraphEncoder
 from gcc.utils.misc import AverageMeter, adjust_learning_rate, warmup_linear
 
 
-def test_moco(train_loader, model, opt):
+def test_moco(train_loader, model, opt, linkprediction=False):
     """
     one epoch training for moco
     """
@@ -41,18 +42,42 @@ def test_moco(train_loader, model, opt):
     model.eval()
 
     emb_list = []
-    for idx, batch in enumerate(train_loader):
-        graph_q, graph_k = batch
-        bsz = graph_q.batch_size
-        graph_q.to(opt.device)
-        graph_k.to(opt.device)
+    if linkprediction==False:
+        for idx, batch in enumerate(train_loader):
+            graph_q, graph_k = batch
+            bsz = graph_q.batch_size
+            graph_q.to(opt.device)
+            graph_k.to(opt.device)
 
-        with torch.no_grad():
-            feat_q = model(graph_q)
-            feat_k = model(graph_k)
+            with torch.no_grad():
+                feat_q = model(graph_q)
+                feat_k = model(graph_k)
 
-        assert feat_q.shape == (bsz, opt.hidden_size)
-        emb_list.append(((feat_q + feat_k) / 2).detach().cpu())
+            assert feat_q.shape == (bsz, opt.hidden_size)
+            emb_list.append(((feat_q + feat_k) / 2).detach().cpu())
+    else: 
+        for idx, batch in enumerate(train_loader): 
+            if idx%100==0:
+                print(idx)
+            graph_q0,graph_k0,graph_q1,graph_k1=batch 
+            bsz=grapg_q0.batch_size 
+            graph_q0.to(opt.device)
+            graph_k0.to(opt.device)
+            graph_q1.to(opt.device)
+            graph_k1.to(opt.device)
+            
+            with torch.no_grad():
+                feat_q0 = model(graph_q0)
+                feat_k0 = model(graph_k0)
+                feat_q1 = model(graph_q1)
+                feat_k1 = model(graph_k1)
+                feat0=(feat_q0+feat_k0)/2
+                feat1=(feat_q1+feat_k1)/2 
+                feat=torch.cat((feat0,feat1),dim=1)
+                
+            assert feat_q0.shape == (bsz, opt.hidden_size)
+            emb_list.append(feat.detach().cpu()) 
+                  
     return torch.cat(emb_list)
 
 
@@ -76,6 +101,7 @@ def main(args_test):
     args.gpu = args_test.gpu
     args.device = torch.device("cpu") if args.gpu is None else torch.device(args.gpu)
 
+    # linkprediction 检测是否是链接预测
     if args_test.dataset in GRAPH_CLASSIFICATION_DSETS:
         train_dataset = GraphClassificationDataset(
             dataset=args_test.dataset,
@@ -84,9 +110,16 @@ def main(args_test):
             restart_prob=args.restart_prob,
             positional_embedding_size=args.positional_embedding_size,
         )
+        linkprediction=False
     elif args_test.dataset in LINK_PREDICTION_DSETS:
-        print(args_test.dataset)
-        raise NotImplementedError
+        train_dataset=LinkPredictionDataset(
+            dataset=args_test.dataset,
+            rw_hops=args.rw_hops,
+            subgraph_size=args.subgraph_size,
+            restart_prob=args.restart_prob,
+            positional_embedding_size=args.positional_embedding_size
+        )
+        linkprediction=True
     else:
         train_dataset = NodeClassificationDataset(
             dataset=args_test.dataset,
@@ -95,14 +128,25 @@ def main(args_test):
             restart_prob=args.restart_prob,
             positional_embedding_size=args.positional_embedding_size,
         )
+        linkprediction=False
     args.batch_size = len(train_dataset)
-    train_loader = torch.utils.data.DataLoader(
-        dataset=train_dataset,
-        batch_size=args.batch_size,
-        collate_fn=batcher(),
-        shuffle=False,
-        num_workers=args.num_workers,
-    )
+    if linkprediction==False:
+        train_loader = torch.utils.data.DataLoader(
+            dataset=train_dataset,
+            batch_size=args.batch_size,
+            collate_fn=batcher(),
+            shuffle=False,
+            num_workers=args.num_workers,
+        )
+    else: 
+        train_loader = torch.utils.data.DataLoader(
+            dataset=train_dataset,
+            batch_size=args.batch_size,
+            collate_fn=linkbatcher(),
+            shuffle=False,
+            num_workers=args.num_workers,
+        )
+        
 
     # create model and optimizer
     model = GraphEncoder(
@@ -129,7 +173,7 @@ def main(args_test):
 
     del checkpoint
 
-    emb = test_moco(train_loader, model, args)
+    emb = test_moco(train_loader, model, args, linkprediction)
     print(os.path.join(args.model_folder, args_test.dataset))
     np.save(os.path.join(args.model_folder, args_test.dataset), emb.numpy())
     print("end")

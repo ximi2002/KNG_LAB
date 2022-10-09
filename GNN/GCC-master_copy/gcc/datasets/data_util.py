@@ -31,6 +31,13 @@ def batcher():
 
     return batcher_dev
 
+def linkbatcher():
+    def linkbatcher_dev(batch):
+        graph_q0,graph_k0,graph_q1,graph_k1=zip(*batch)
+        graph_q0,graph_k0,graph_q1,graph_k1=dgl.batch(graph_q0),dgl.batch(graph_k0),dgl.batch(graph_q1),dgl.batch(graph_k1)
+        return graph_q0,graph_k0,graph_q1,graph_k1
+    
+    return linkbatcher_dev
 
 def labeled_batcher():
     def batcher_dev(batch):
@@ -213,14 +220,14 @@ def create_node_classification_dataset(dataset_name):
         return SSSingleDataset("data/panther/", dataset_name)
     elif dataset_name in ["ogbn-proteins"]:
         from ogb.nodeproppred import DglNodePropPredDataset
-        return DglNodePropPredDataset("ogbn-proteins")
+        return DglNodePropPredDataset("ogbn-proteins",root='/home/suzhang/git/GNN/GCC-master_copy/dataset')
     else:
         raise NotImplementedError
 
 def create_link_prediction_dataset(dataset_name):
-    if dataset_name in ['obgl-ddi','obgl-collab']:
+    if dataset_name in ['ogbl-ddi','ogbl-collab']:
         from ogb.linkproppred import DglLinkPropPredDataset
-        return DglLinkPropPredDataset(dataset_name)
+        return DglLinkPropPredDataset(dataset_name,root='/home/suzhang/git/GNN/GCC-master_copy/dataset')
     else:
         raise NotImplementedError
 

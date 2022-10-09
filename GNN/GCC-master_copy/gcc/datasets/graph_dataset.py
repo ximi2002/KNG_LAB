@@ -280,7 +280,6 @@ class GraphDataset(torch.utils.data.Dataset):
         )
         return graph_q, graph_k
 
-
 class NodeClassificationDataset(GraphDataset):
     def __init__(
         self,
@@ -347,7 +346,6 @@ class GraphClassificationDataset(NodeClassificationDataset):
         node_idx = self.graphs[idx].out_degrees().argmax().item()
         return graph_idx, node_idx
 
-
 class GraphClassificationDatasetLabeled(GraphClassificationDataset):
     def __init__(
         self,
@@ -392,7 +390,6 @@ class GraphClassificationDatasetLabeled(GraphClassificationDataset):
             entire_graph=True,
         )
         return graph_q, self.dataset.graph_labels[graph_idx].item()
-
 
 class NodeClassificationDatasetLabeled(NodeClassificationDataset):
     def __init__(
@@ -442,6 +439,9 @@ class NodeClassificationDatasetLabeled(NodeClassificationDataset):
         return graph_q, self.data.y[idx].argmax().item()
 
 class LinkPredictionDataset(NodeClassificationDataset):
+    """
+    返回链接预测的Training Set
+    """
     def __init__(
         self,
         dataset,
@@ -456,7 +456,211 @@ class LinkPredictionDataset(NodeClassificationDataset):
         self.restart_prob=restart_prob
         self.positional_embedding_size=positional_embedding_size
         self.step_dist=step_dist
-        raise NotImplementedError
+        assert positional_embedding_size > 1
+        
+        self.dataset=data_util.create_link_prediction_dataset(dataset)
+        self.graph=self.dataset[0]
+        g_to_nx=self.graph.to_networkx()
+        split_edge=self.dataset.get_edge_split()
+        self.train_edge=split_edge['train']['edge']
+        self.valid_edge=split_edge['valid']['edge']
+        self.valid_edge_neg=split_edge['valid']['edge_neg']
+        self.test_edge=split_edge['test']['edge']
+        print("pre work already")
+        
+        self.g_nx=g_to_nx.copy()
+        g_raw=g_to_nx.copy()
+        print("Have generated g_raw graph")
+        
+        self.edge_test=[(self.test_edge[i][0],self.test_edge[i][1]) for i in range(self.test_edge.shape[0])]
+        g_to_nx.remove_edges_from(self.edge_test)
+        g_to_nx_test=g_to_nx.copy()
+        self.g_test=dgl.graph(g_to_nx_test)
+        print("Have generated g_test graph")
+        
+        self.edge_valid=[(self.valid_edge[i][0],self.valid_edge[i][1]) for i in range(self.valid_edge.shape[0])]
+        g_to_nx.remove_edges_from(self.edge_valid)
+        g_to_nx_valid=g_to_nx.copy()
+        self.g_valid=dgl.graph(g_to_nx_valid)
+        print("Have generated g_valid graph")
+        
+        self.edge_train=[(self.train_edge[i][0],self.train_edge[i][1]) for i in range(self.train_edge.shape[0])]
+        g_to_nx.remove_edges_from(self.edge_train)
+        g_to_nx_train=g_to_nx.copy()
+        self.g_train=dgl.graph(g_to_nx_train)
+        print("Have generated g_train graph")
+        
+    def __len__(self):
+        return len(self.edge_train)
+    
+    def __getitem__(self,idx):
+        node_idx0,node_idx1=self.train_edge[idx][0],self.train_edge[idx][1]
+
+        step = np.random.choice(len(self.step_dist), 1, p=self.step_dist)[0]
+        if step == 0:
+            other_node_idx0,other_node_idx1 = node_idx0,node_idx1
+        else:
+            other_node_idx0 = dgl.contrib.sampling.random_walk(
+                g=self.graph, seeds=[node_idx0], num_traces=1, num_hops=step
+            )[0][0][-1].item()
+            other_node_idx1 = dgl.contrib.sampling.random_walk(
+                g=self.graph, seeds=[node_idx1], num_traces=1, num_hops=step
+            )[0][0][-1].item()
+        max_nodes_per_seed0 = max(
+            self.rw_hops,
+            int(
+                (
+                    self.graph.out_degree(node_idx0)
+                    * math.e
+                    / (math.e - 1)
+                    / self.restart_prob
+                )
+                + 0.5
+            ),
+        )
+        max_nodes_per_seed1 = max(
+            self.rw_hops,
+            int(
+                (
+                    self.graph.out_degree(node_idx1)
+                    * math.e
+                    / (math.e - 1)
+                    / self.restart_prob
+                )
+                + 0.5
+            ),
+        )
+        traces0 = dgl.contrib.sampling.random_walk_with_restart(
+            self.graph,
+            seeds=[node_idx0, other_node_idx0],
+            restart_prob=self.restart_prob,
+            max_nodes_per_seed=max_nodes_per_seed0,
+        )
+        traces1 = dgl.contrib.sampling.random_walk_with_restart(
+            self.graph,
+            seeds=[node_idx1, other_node_idx1],
+            restart_prob=self.restart_prob,
+            max_nodes_per_seed=max_nodes_per_seed1,
+        )
+
+        graph_q0 = data_util._rwr_trace_to_dgl_graph(
+            g=self.graph,
+            seed=node_idx0,
+            trace=traces0[0],
+            positional_embedding_size=self.positional_embedding_size,
+            entire_graph=hasattr(self, "entire_graph") and self.entire_graph,
+        )
+        graph_k0 = data_util._rwr_trace_to_dgl_graph(
+            g=self.graph,
+            seed=other_node_idx0,
+            trace=traces0[1],
+            positional_embedding_size=self.positional_embedding_size,
+            entire_graph=hasattr(self, "entire_graph") and self.entire_graph,
+        )
+        graph_q1 = data_util._rwr_trace_to_dgl_graph(
+            g=self.graph,
+            seed=node_idx1,
+            trace=traces1[0],
+            positional_embedding_size=self.positional_embedding_size,
+            entire_graph=hasattr(self, "entire_graph") and self.entire_graph,
+        )
+        graph_k1 = data_util._rwr_trace_to_dgl_graph(
+            g=self.graph,
+            seed=other_node_idx1,
+            trace=traces1[1],
+            positional_embedding_size=self.positional_embedding_size,
+            entire_graph=hasattr(self, "entire_graph") and self.entire_graph,
+        )
+        return graph_q0,graph_k0,graph_q1,graph_k1
+
+
+class LinkPredictionDatasetLabeled(NodeClassificationDataset):
+    """
+    返回链接预测的Training Set
+    """
+    def __init__(
+        self,
+        dataset,
+        rw_hops=64,
+        subgraph_size=64,
+        restart_prob=0.8,
+        positional_embedding_size=32,
+        step_dist=[1.0, 0.0, 0.0],
+        ):
+        self.rw_hops=rw_hops
+        self.subgraph_size=subgraph_size
+        self.restart_prob=restart_prob
+        self.positional_embedding_size=positional_embedding_size
+        self.step_dist=step_dist
+        assert positional_embedding_size > 1
+        
+        self.dataset=data_util.create_link_prediction_dataset(dataset)
+        self.graph=self.dataset[0]
+        g_to_nx=self.graph.to_networkx()
+        split_edge=self.dataset.get_edge_split()
+        self.train_edge=split_edge['train']['edge']
+        self.valid_edge=split_edge['valid']['edge']
+        self.valid_edge_neg=split_edge['valid']['edge_neg']
+        self.test_edge=split_edge['test']['edge']
+        print("pre work already")
+        
+        y=self.graph.has_edges_between(u=self.train_edge[:,0],v=self.train_edge[:,1])
+        print("Have generated y, shape {}".format(y.shape))
+        
+        self.g_nx=g_to_nx.copy()
+        g_raw=g_to_nx.copy()
+        print("Have generated g_raw graph")
+        
+        self.edge_test=[(self.test_edge[i][0],self.test_edge[i][1]) for i in range(self.test_edge.shape[0])]
+        g_to_nx.remove_edges_from(self.edge_test)
+        g_to_nx_test=g_to_nx.copy()
+        self.g_test=dgl.graph(g_to_nx_test)
+        print("Have generated g_test graph")
+        
+        self.edge_valid=[(self.valid_edge[i][0],self.valid_edge[i][1]) for i in range(self.valid_edge.shape[0])]
+        g_to_nx.remove_edges_from(self.edge_valid)
+        g_to_nx_valid=g_to_nx.copy()
+        self.g_valid=dgl.graph(g_to_nx_valid)
+        print("Have generated g_valid graph")
+        
+        self.edge_train=[(self.train_edge[i][0],self.train_edge[i][1]) for i in range(self.train_edge.shape[0])]
+        g_to_nx.remove_edges_from(self.edge_train)
+        g_to_nx_train=g_to_nx.copy()
+        self.g_train=dgl.graph(g_to_nx_train)
+        print("Have generated g_train graph")
+        
+    def __len__(self):
+        return len(self.edge_train)
+    
+    def __getitem__(self,idx):
+        edgeitem=self.train_edge[idx,:].reshape(-1)
+        
+        
+        traces1 = dgl.contrib.sampling.random_walk_with_restart(
+            self.g_train,
+            seeds=[edgeitem[0]],
+            restart_prob=self.restart_prob,
+            max_nodes_per_seed=self.rw_hops,
+        )
+        traces2 = dgl.contrib.sampling.random_walk_with_restart(
+            self.g_train,
+            seeds=[edgeitem[1]],
+            restart_prob=self.restart_prob,
+            max_nodes_per_seed=self.rw_hops,
+        )
+        graph_1 = data_util._rwr_trace_to_dgl_graph(
+            g=self.g_train,
+            seeds=[edgeitem[0]],
+            trace=traces1[0],
+            positional_embedding_size=self.positional_embedding_size,
+        )
+        graph_1 = data_util._rwr_trace_to_dgl_graph(
+            g=self.g_train,
+            seeds=[edgeitem[1]],
+            trace=traces2[0],
+            positional_embedding_size=self.positional_embedding_size,
+        )
+        return (graph_0,graph_1),self.y[idx]
         
 
 

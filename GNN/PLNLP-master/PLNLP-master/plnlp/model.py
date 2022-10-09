@@ -41,7 +41,7 @@ class BaseModel(object):
         pretrain_emb: str
             whether to load pretrained node embeddings
     """
-
+    # 初始化模型
     def __init__(self, lr, dropout, grad_clip_norm, gnn_num_layers, mlp_num_layers, emb_hidden_channels,
                  gnn_hidden_channels, mlp_hidden_channels, num_nodes, num_node_feats, gnn_encoder_name,
                  predictor_name, loss_func, optimizer_name, device, use_node_feats, train_node_emb,
@@ -89,12 +89,14 @@ class BaseModel(object):
         else:
             self.optimizer = torch.optim.Adam(self.para_list, lr=lr)
 
+    # 全部参数初始化
     def param_init(self):
         self.encoder.reset_parameters()
         self.predictor.reset_parameters()
         if self.emb is not None:
             torch.nn.init.xavier_uniform_(self.emb.weight)
 
+    # embedding 作为特征
     def create_input_feat(self, data):
         if self.use_node_feats:
             input_feat = data.x.to(self.device)
@@ -104,6 +106,7 @@ class BaseModel(object):
             input_feat = self.emb.weight
         return input_feat
 
+    # 计算 loss 函数
     def calculate_loss(self, pos_out, neg_out, num_neg, margin=None):
         if self.loss_func_name == 'CE':
             loss = ce_loss(pos_out, neg_out)
@@ -125,7 +128,9 @@ class BaseModel(object):
             loss = auc_loss(pos_out, neg_out, num_neg)
         return loss
 
+    # 训练
     def train(self, data, split_edge, batch_size, neg_sampler_name, num_neg):
+        # 训练模式
         self.encoder.train()
         self.predictor.train()
 
@@ -229,26 +234,31 @@ class BaseModel(object):
 def create_input_layer(num_nodes, num_node_feats, hidden_channels, use_node_feats=True,
                        train_node_emb=False, pretrain_emb=None):
     emb = None
+    # 是否使用节点特征
     if use_node_feats:
         input_dim = num_node_feats
+        # 直接训练emb
         if train_node_emb:
             emb = torch.nn.Embedding(num_nodes, hidden_channels)
             input_dim += hidden_channels
+        # 采用预训练
         elif pretrain_emb is not None and pretrain_emb != '':
             weight = torch.load(pretrain_emb)
             emb = torch.nn.Embedding.from_pretrained(weight)
             input_dim += emb.weight.size(1)
     else:
+        # 采用预训练
         if pretrain_emb is not None and pretrain_emb != '':
             weight = torch.load(pretrain_emb)
             emb = torch.nn.Embedding.from_pretrained(weight)
             input_dim = emb.weight.size(1)
+        # 直接训练emb
         else:
             emb = torch.nn.Embedding(num_nodes, hidden_channels)
             input_dim = hidden_channels
     return input_dim, emb
 
-
+# GNN 层
 def create_gnn_layer(input_channels, hidden_channels, num_layers, dropout=0, encoder_name='SAGE'):
     if encoder_name.upper() == 'GCN':
         return GCN(input_channels, hidden_channels, hidden_channels, num_layers, dropout)
@@ -259,7 +269,7 @@ def create_gnn_layer(input_channels, hidden_channels, num_layers, dropout=0, enc
     else:
         return SAGE(input_channels, hidden_channels, hidden_channels, num_layers, dropout)
 
-
+# create 预测层
 def create_predictor_layer(hidden_channels, num_layers, dropout=0, predictor_name='MLP'):
     predictor_name = predictor_name.upper()
     if predictor_name == 'DOT':
@@ -275,7 +285,7 @@ def create_predictor_layer(hidden_channels, num_layers, dropout=0, predictor_nam
     elif predictor_name == 'MLPCAT':
         return MLPCatPredictor(hidden_channels, hidden_channels, 1, num_layers, dropout)
 
-
+# lr 自适应
 def adjust_lr(optimizer, decay_ratio, lr):
     lr_ = lr * (1 - decay_ratio)
     lr_min = lr * 0.0001

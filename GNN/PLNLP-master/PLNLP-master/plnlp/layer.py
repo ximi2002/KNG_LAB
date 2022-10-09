@@ -26,7 +26,7 @@ class BaseGNN(torch.nn.Module):
             x = F.dropout(x, p=self.dropout, training=self.training)
         return x
 
-
+# SAGE 架构
 class SAGE(BaseGNN):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers, dropout):
         super(SAGE, self).__init__(dropout, num_layers)
@@ -35,7 +35,7 @@ class SAGE(BaseGNN):
             second_channels = out_channels if i == num_layers - 1 else hidden_channels
             self.convs.append(SAGEConv(first_channels, second_channels))
 
-
+# GCN 架构
 class GCN(BaseGNN):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers, dropout):
         super(GCN, self).__init__(dropout, num_layers)
@@ -44,7 +44,7 @@ class GCN(BaseGNN):
             second_channels = out_channels if i == num_layers - 1 else hidden_channels
             self.convs.append(GCNConv(first_channels, second_channels, normalize=False))
 
-
+# WSAGE 架构
 class WSAGE(BaseGNN):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers, dropout):
         super(WSAGE, self).__init__(dropout, num_layers)
@@ -53,7 +53,7 @@ class WSAGE(BaseGNN):
             second_channels = out_channels if i == num_layers - 1 else hidden_channels
             self.convs.append(GraphConv(first_channels, second_channels))
 
-
+# Transformer 架构
 class Transformer(BaseGNN):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers, dropout):
         super(Transformer, self).__init__(dropout, num_layers)
@@ -62,7 +62,7 @@ class Transformer(BaseGNN):
             second_channels = out_channels if i == num_layers - 1 else hidden_channels
             self.convs.append(TransformerConv(first_channels, second_channels))
 
-
+# MLP 预测函数
 class MLPPredictor(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers, dropout):
         super(MLPPredictor, self).__init__()
@@ -86,7 +86,7 @@ class MLPPredictor(torch.nn.Module):
         x = self.lins[-1](x)
         return x
 
-
+# Cat后的MLP预测
 class MLPCatPredictor(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, out_channels, num_layers, dropout):
         super(MLPCatPredictor, self).__init__()
@@ -102,6 +102,7 @@ class MLPCatPredictor(torch.nn.Module):
         for lin in self.lins:
             lin.reset_parameters()
 
+    # 注意两种不同的Cat取了平均
     def forward(self, x_i, x_j):
         x1 = torch.cat([x_i, x_j], dim=-1)
         x2 = torch.cat([x_j, x_i], dim=-1)
@@ -115,7 +116,7 @@ class MLPCatPredictor(torch.nn.Module):
         x = (x1 + x2)/2
         return x
 
-
+# MLP点积预测
 class MLPDotPredictor(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, num_layers, dropout):
         super(MLPDotPredictor, self).__init__()
@@ -138,7 +139,7 @@ class MLPDotPredictor(torch.nn.Module):
         x = torch.sum(x_i * x_j, dim=-1)
         return x
 
-
+# MLP 双线性点积预测
 class MLPBilPredictor(torch.nn.Module):
     def __init__(self, in_channels, hidden_channels, num_layers, dropout):
         super(MLPBilPredictor, self).__init__()
@@ -163,7 +164,7 @@ class MLPBilPredictor(torch.nn.Module):
         x = torch.sum(self.bilin(x_i) * x_j, dim=-1)
         return x
 
-
+# 直接的点积预测
 class DotPredictor(torch.nn.Module):
     def __init__(self):
         super(DotPredictor, self).__init__()
@@ -175,7 +176,7 @@ class DotPredictor(torch.nn.Module):
         x = torch.sum(x_i * x_j, dim=-1)
         return x
 
-
+# 双线性点积预测
 class BilinearPredictor(torch.nn.Module):
     def __init__(self, hidden_channels):
         super(BilinearPredictor, self).__init__()
